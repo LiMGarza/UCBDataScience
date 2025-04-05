@@ -1,0 +1,107 @@
+---
+title: "Week 3 Assignment"
+author: "LMG"
+date: "2025-03-30"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+### Packages
+```{r setup, message=FALSE}
+library(tidyverse)
+```
+
+### Import Data
+```{r} 
+NYPD_Shooting_Incident_Data <- read_csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD",show_col_types = FALSE)
+```
+
+### Clean Data
+```{r}
+# Remove columns
+NYPD_Shooting_Data_Summary <- NYPD_Shooting_Incident_Data[, !(names(NYPD_Shooting_Incident_Data) %in% c("INCIDENT_KEY","OCCUR_TIME","JURISDICTION_CODE","X_COORD_CD","Y_COORD_CD","Latitude","Longitude","Lon_Lat"))]
+     
+#Standardize blanks
+NYPD_Shooting_Data_Summary <- NYPD_Shooting_Data_Summary %>%
+  dplyr::mutate(across(where(is.character), ~ ifelse(. %in% c("", "null", "UNKNOWN"), "UNK", .)))
+```
+
+### Analyze & Model Data
+```{r}
+NYPD_Shooting_Data_Summary <- NYPD_Shooting_Data_Summary %>%
+  mutate(YEAR = lubridate::year(lubridate::mdy(OCCUR_DATE)))
+
+shootings_year_boro <- NYPD_Shooting_Data_Summary %>%
+  group_by(YEAR, BORO) %>%
+  summarise(Num_Shootings = n(), .groups = "drop")
+
+ggplot(shootings_year_boro, aes(x = YEAR, y = Num_Shootings, color = BORO)) +
+  geom_line(linewidth = 1) +
+  labs(title = "Shootings per year by Boro", x = "Year", y = "Number of Shootings") +
+  theme_minimal()
+```
+
+#### Shooting Trends since 2021 - Has crime/shootings risen since the 2020 protests?
+```{r}
+NYPD_Shooting_Data_Summary <- NYPD_Shooting_Data_Summary %>%
+  mutate(OCCUR_DATE = lubridate::mdy(OCCUR_DATE)) %>%
+  filter(OCCUR_DATE > as.Date("2021-01-01"))
+```
+
+#### Total shootings by Boro
+```{r}
+shootings_by_boro <- NYPD_Shooting_Data_Summary %>%
+  group_by(BORO) %>%
+  summarise(Num_Shootings = n()) %>%
+  arrange(desc(Num_Shootings))
+
+knitr::kable(shootings_by_boro)
+```
+
+#### Precincts with the highest shooting incidents
+```{r}
+shootings_by_precinct <- NYPD_Shooting_Data_Summary %>%
+  group_by(PRECINCT, BORO) %>%
+  summarise(Num_Shootings = n(), .groups = "drop") %>%
+  arrange(desc(Num_Shootings)) %>%
+  slice_max(order_by = Num_Shootings, n = 10)
+
+knitr::kable(shootings_by_precinct)
+```
+
+#### Boro shooting trends
+```{r trend-line, message=FALSE}
+shootings_year_boro <- NYPD_Shooting_Data_Summary %>%
+  mutate(YEAR = lubridate::year(OCCUR_DATE)) %>%
+  group_by(YEAR, BORO) %>%
+  summarise(Num_Shootings = n(), .groups = "drop")
+
+ggplot(shootings_year_boro, aes(x = YEAR, y = Num_Shootings, color = BORO)) +
+  geom_line(linewidth = 1) +
+  geom_smooth(method = "lm", se = FALSE, linetype = "dotted", fullrange = TRUE) +
+  scale_x_continuous(limits = c(min(shootings_year_boro$YEAR), 2025), breaks = seq(2021, 2025, 1)) +
+  labs(
+    title = "Boro shootings per year by with 2024, 2025 predictions",
+    x = "Year",
+    y = "Number of Shootings"
+  ) +
+  theme_minimal()
+```
+
+#### Summary & Potential Bias
+My analysis is looking at shooting trends in NYC after the summer of 2020; or more specifically, after the BLM protests and the defend the police movement. Less policing and a higher distrust of the police was noted by media sources in large cities after 2020. One would expect higher crime rates, including shooting, due to these outcomes. The analyzed data actually shows shooting incidents falling in all NYC boros post 2021.
+
+It should be noted that bias could have affect these trends. Specifically:
+
+- Due to a distrust in law enforcement, incidents could be under reported.
+- Certain boros could be underrepresented by less active policing.
+- Due to reforms there could be changes in what constitutes a shooting or what types of shootings get logged. 
+- This trend represents correlation, thus other outside factors could have more substantially contributed
+- Starting the analysis in 2021 could have ignored other policing/reporting trends. 
+
+
+
+
+
+
